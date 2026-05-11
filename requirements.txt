@@ -1,0 +1,6 @@
+azure-functions
+requests
+python-dotenv
+openpyxl
+pandas
+msal

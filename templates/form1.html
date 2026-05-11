@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <!-- ✅ Mobile version required -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Gap Time Form</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 40px;
+        }
+
+        .card {
+            max-width: 700px;
+            margin: 0 auto;
+            background: white;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 24px;
+            font-size: 28px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 14px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        input[readonly] {
+            background: #eeeeee;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 16px;
+            margin-top: 28px;
+        }
+
+        button {
+            flex: 1;
+            border: none;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .sign-out {
+            background: #d93025;
+        }
+
+        .sign-in {
+            background: #0f9d58;
+        }
+
+        .hint {
+            margin-top: 18px;
+            background: #fff4cc;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .error {
+            background: #fdecea;
+            color: #b00020;
+        }
+
+        .success {
+            background: #e6f4ea;
+            color: #137333;
+        }
+
+        .warning-box {
+            margin-top: 18px;
+            background: #fff4cc;
+            border: 1px solid #f4c542;
+            padding: 14px;
+            border-radius: 8px;
+        }
+
+        .warning-text {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #6b4e00;
+        }
+
+        /* ✅ Mobile version */
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+                background: #f4f6f8;
+            }
+
+            .card {
+                width: 100%;
+                max-width: none;
+                padding: 20px;
+                border-radius: 14px;
+                box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            }
+
+            h1 {
+                font-size: 24px;
+                margin-bottom: 18px;
+                text-align: center;
+            }
+
+            label {
+                font-size: 15px;
+                margin-top: 14px;
+            }
+
+            input,
+            select,
+            textarea {
+                font-size: 16px;
+                padding: 13px;
+            }
+
+            textarea {
+                min-height: 90px;
+            }
+
+            .button-row {
+                flex-direction: column;
+                gap: 12px;
+                margin-top: 24px;
+            }
+
+            button {
+                width: 100%;
+                font-size: 17px;
+                padding: 16px;
+            }
+
+            .hint,
+            .warning-box {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="card">
+    <h1>Gap Time Form</h1>
+
+    <label for="nameInput">Name *</label>
+    <input id="nameInput" list="workerList" placeholder="Type staff name or OPMS number">
+    <datalist id="workerList"></datalist>
+
+    <label for="positionInput">Position</label>
+    <input id="positionInput" readonly>
+
+    <label for="siteInput">Site / Project</label>
+    <input id="siteInput" readonly>
+
+    <label for="supervisorSelect">Supervisor *</label>
+    <select id="supervisorSelect">
+        <option value="">Select supervisor</option>
+    </select>
+
+    <label for="reasonInput">Reason *</label>
+    <textarea id="reasonInput" placeholder="Enter reason..."></textarea>
+
+    <div id="customTimeBox" class="warning-box" style="display:none;">
+        <p id="customTimeMessage" class="warning-text"></p>
+        <label for="customTimeInput" id="customTimeLabel">Missing Time *</label>
+        <input id="customTimeInput" type="datetime-local">
+    </div>
+
+    <div class="button-row">
+        <button class="sign-out" onclick="submitAction('sign-out')">Sign Out</button>
+        <button class="sign-in" onclick="submitAction('sign-in')">Sign In</button>
+    </div>
+
+    <div id="messageBox" class="hint" style="display:none;"></div>
+</div>
+
+<script>
+    let workers = [];
+    let supervisors = [];
+    let selectedWorker = null;
+    let isSubmitting = false;
+
+    let missingTimeRequired = false;
+    let pendingAction = null;
+
+    async function loadData() {
+        const workerRes = await fetch("/api/workers");
+        workers = await workerRes.json();
+
+        const supervisorRes = await fetch("/api/supervisors");
+        supervisors = await supervisorRes.json();
+
+        populateWorkers();
+        populateSupervisors();
+    }
+
+    function populateWorkers() {
+        const list = document.getElementById("workerList");
+        list.innerHTML = "";
+
+        workers.forEach(w => {
+            const option = document.createElement("option");
+            option.value = `${w.name} (${w.opms})`;
+            list.appendChild(option);
+        });
+    }
+
+    function populateSupervisors() {
+        const select = document.getElementById("supervisorSelect");
+        select.innerHTML = '<option value="">Select supervisor</option>';
+
+        supervisors.forEach(s => {
+            const option = document.createElement("option");
+            option.value = `${s.name} - ${s.position}`;
+            option.textContent = `${s.name} - ${s.position}`;
+            select.appendChild(option);
+        });
+    }
+
+    document.getElementById("nameInput").addEventListener("input", function () {
+        const value = this.value.trim().toLowerCase();
+
+        selectedWorker = workers.find(w => {
+            const display = `${w.name} (${w.opms})`.toLowerCase();
+            return display === value;
+        });
+
+        if (!selectedWorker) {
+            selectedWorker = workers.find(w =>
+                w.name.toLowerCase() === value ||
+                w.opms.toLowerCase() === value
+            );
+        }
+
+        if (selectedWorker) {
+            document.getElementById("positionInput").value = selectedWorker.position || "";
+            document.getElementById("siteInput").value = selectedWorker.site || "";
+        } else {
+            document.getElementById("positionInput").value = "";
+            document.getElementById("siteInput").value = "";
+        }
+
+        resetMissingTimeBox();
+        hideMessage();
+    });
+
+    function showMessage(message, type) {
+        const box = document.getElementById("messageBox");
+        box.style.display = "block";
+        box.textContent = message;
+        box.className = "hint";
+
+        if (type === "error") {
+            box.classList.add("error");
+        }
+
+        if (type === "success") {
+            box.classList.add("success");
+        }
+    }
+
+    function hideMessage() {
+        const box = document.getElementById("messageBox");
+        box.style.display = "none";
+        box.textContent = "";
+        box.className = "hint";
+    }
+
+    function resetMissingTimeBox() {
+        missingTimeRequired = false;
+        pendingAction = null;
+
+        document.getElementById("customTimeBox").style.display = "none";
+        document.getElementById("customTimeInput").value = "";
+        document.getElementById("customTimeMessage").textContent = "";
+        document.getElementById("customTimeLabel").textContent = "Missing Time *";
+    }
+
+    function showMissingTimeBox(action, originalMessage) {
+        missingTimeRequired = true;
+        pendingAction = action;
+
+        const box = document.getElementById("customTimeBox");
+        const label = document.getElementById("customTimeLabel");
+        const messageText = document.getElementById("customTimeMessage");
+
+        box.style.display = "block";
+        messageText.textContent = originalMessage;
+
+        if (action === "sign-out") {
+            label.textContent = "Missing Return Time *";
+        } else {
+            label.textContent = "Missing Exit Time *";
+        }
+
+        hideMessage();
+    }
+
+    function shouldShowMissingTimeInput(errorMessage, action) {
+        const msg = errorMessage.toLowerCase();
+
+        if (action === "sign-out" && msg.includes("missing sign in")) {
+            return true;
+        }
+
+        if (action === "sign-in" && msg.includes("missing sign out")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    function buildPayload(action) {
+        if (!selectedWorker) {
+            throw new Error("Please select a valid staff member.");
+        }
+
+        const supervisor = document.getElementById("supervisorSelect").value;
+        const reason = document.getElementById("reasonInput").value.trim();
+        const customTime = document.getElementById("customTimeInput").value;
+
+        if (!supervisor) {
+            throw new Error("Please select a supervisor.");
+        }
+
+        if (!reason) {
+            throw new Error("Please enter a reason.");
+        }
+
+        if (missingTimeRequired && pendingAction === action && !customTime) {
+            if (action === "sign-out") {
+                throw new Error("Please enter the missing Return time.");
+            } else {
+                throw new Error("Please enter the missing Exit time.");
+            }
+        }
+
+        const payload = {
+            name: selectedWorker.name,
+            first_name: selectedWorker.first_name || "",
+            last_name: selectedWorker.last_name || "",
+            opms: selectedWorker.opms,
+            position: selectedWorker.position || "",
+            site: selectedWorker.site || "",
+            project: selectedWorker.project || selectedWorker.site || "",
+            supervisor: supervisor,
+            reason: reason
+        };
+
+        if (missingTimeRequired && pendingAction === action && customTime) {
+            payload.custom_time = customTime;
+        }
+
+        return payload;
+    }
+
+    async function submitAction(action) {
+        if (isSubmitting) {
+            return;
+        }
+
+        try {
+            isSubmitting = true;
+
+            const payload = buildPayload(action);
+
+            const endpoint = action === "sign-out"
+                ? "/api/sign-out"
+                : "/api/sign-in";
+
+            const res = await fetch(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await res.json();
+
+            if (!res.ok) {
+                const errorMessage = result.error || "Submit failed.";
+
+                if (shouldShowMissingTimeInput(errorMessage, action)) {
+                    showMissingTimeBox(action, errorMessage);
+                    return;
+                }
+
+                throw new Error(errorMessage);
+            }
+
+            showMessage(result.message, "success");
+            document.getElementById("reasonInput").value = "";
+            resetMissingTimeBox();
+
+        } catch (err) {
+            showMessage(err.message, "error");
+        } finally {
+            isSubmitting = false;
+        }
+    }
+
+    loadData();
+</script>
+
+</body>
+</html>
