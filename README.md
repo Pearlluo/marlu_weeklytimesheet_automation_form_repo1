@@ -26,6 +26,9 @@ flowchart TD
     class SHIFT,CALC,ACTUAL output
 ```
 
+## Preview
+![Gap Tracker Form](GapTrackerForm.png)
+
 ## Sign Out / Sign In logic
 
 Each worker can exit and return multiple times per shift. The system enforces strict time ordering:
